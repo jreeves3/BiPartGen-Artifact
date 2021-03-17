@@ -5,12 +5,12 @@ Generate bipartite graphs and the associated CNF formulas
 ```bash
 General Options
 -g [chess|pigeon|random]       Type of graph to generate.
--n [Int]                       Size of chess NxN, number of holes in PHP N, or number of nodes in random graph.
--e [direct|split|sinz|mixed]   At Most 1 encoding, mixed uses random encoding for each node independently.
+-n [Int]                       Size of smaller partition in graph, or nxn board for chess?.
+-e [direct|split|sinz|mixed]   At-Most-One encoding, mixed randomly selects encoding for each node.
 -f [FNAME]                     Filename to write cnf formula in dimacs format.
 -s [Int]                       Seed for random number generator.
--M                             At Most 1 encoding applied also to both partitions.
--L                             At Least 1 encoding applied also to both partitions.
+-M                             At-Most-One encoding applied also to both partitions.
+-L                             At-Least-One encoding applied also to both partitions.
 -E [Int]                       Number of edges in random graph.
 
 Mchess Additional Options
@@ -21,8 +21,8 @@ Random Graph Additional Options
 -c [Int]           Difference in number of nodes between partitions.
 
 PGBDD Variants
--p                 Bucket and variable ordering for Sinz encoding
--o                 Variable ordering for either Sinz or split encoding
+-p                 Bucket and variable ordering for Sinz encoding (FNAME_bucket.order, FNAME_variable.order).
+-o                 Variable ordering for either Sinz or split encoding (FNAME_variable.order).
 
 Symmetry-Breaking Clauses
 -b ...
@@ -38,10 +38,10 @@ scripts: Scripts to generate a subset of benchmark formulas.
 data: Excel spreadsheets (Random Experiments, Symmetry-Breaking Experiments) with sheets labeled by Figure #.
 
 ## Solvers
-* Kissat(https://github.com/arminbiere/kissat)
-* Lingeling(https://github.com/arminbiere/lingeling)
-* SaDiCaL(http://fmv.jku.at/sadical)
-* PGBDD(https://github.com/rebryant/pgbdd)
+* [Kissat](https://github.com/arminbiere/kissat)
+* [Lingeling](https://github.com/arminbiere/lingeling)
+* [SaDiCaL](http://fmv.jku.at/sadical)
+* [PGBDD](https://github.com/rebryant/pgbdd)
 
 ## Example
 ```bash
