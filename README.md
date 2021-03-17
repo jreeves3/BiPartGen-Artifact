@@ -48,7 +48,7 @@ Excel spreadsheets (Random Experiments, Symmetry-Breaking Experiments) with shee
 
 ## Example
 ```bash
-# Mutilated chessboard with 
+# Mutilated chessboard nxn with direct encoding
 > ./bipartgen -g chess -f chess4 -n 4 -e direct
 
 # Pigeonhole with 8 holes, 9 pigeons, with exactly one constraints for each node using sinz
