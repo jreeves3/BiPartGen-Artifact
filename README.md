@@ -29,11 +29,19 @@ Symmetry-Breaking Clauses
 
 ```
 
-scripts: scripts to generate formulas.
+scripts: Scripts to generate a subset of benchmark formulas.
+* random - random graphs with 130 edges, n from [12,20], encodings from [direct,sinz,split,mixed], -A (default) and -B (Exactly-One) constraints
+* randomPGBDD - random graphs with 130 edges, n from [12,20], encodings from [sinz,split], -A (default) constraints, bucket permutation (-Sched) and variable ordering (-Ord) options. (Note: this outputs .._variable.order, .._bucket.order files with usecase shown in the example section below)
+* symmetry-breaking - 
 
 
-data: Excel spreadsheet with data labeled by Figure in the paper.
+data: Excel spreadsheets (Random Experiments, Symmetry-Breaking Experiments) with sheets labeled by Figure #.
 
+## Solvers
+* Kissat(https://github.com/arminbiere/kissat)
+* Lingeling(https://github.com/arminbiere/lingeling)
+* SaDiCaL(http://fmv.jku.at/sadical)
+* PGBDD(https://github.com/rebryant/pgbdd)
 
 ## Example
 ```bash
