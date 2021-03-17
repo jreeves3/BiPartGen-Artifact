@@ -80,6 +80,7 @@ int *aux_var_map1, *aux_var_map2;
 static bool pgbdd_bucket = false;
 static bool pgbdd_var_ord = false;
 static bool randomGr = false;
+static int verbosity_level = 0;
 
 static void print_help(char *runtime_path) {
   printf("\n%s: BiPartGen Hard CNF Generator\n", runtime_path);
@@ -141,7 +142,9 @@ static int split_atMost_encoding(
   for(int i=0; i<s; i++) {
     if (i == 3 && split) {
       split_edges[i] = ex_var;
-      if (pgbdd_bucket) aux_var_map1[split_edges[2]] = ex_var; // for bdd var ord
+      if (pgbdd_var_ord) {
+        aux_var_map1[split_edges[2]] = ex_var;
+      }
     }
     else split_edges[i] = edges[i+curr_i];
   }
@@ -193,6 +196,7 @@ static int sinz_atMost_encoding(FILE *f, int *edges, int size_edges, int sinz_va
         aux_var_map1[edges[0]] = sinz_variableID(0,sinz_var);
         return sinz_variableID(size_edges-1,sinz_var);
       }
+      return sinz_var + 1;
     }
     else {
       fprintf(f, "%d %d 0\n", -edges[0], -edges[1]);
@@ -780,10 +784,11 @@ int main(int argc, char *argv[]) {
   int nedges = 0;
 
 
+
   // Parse command line arguments
   extern char *optarg;
   char opt;
-  while ((opt = getopt(argc, argv, "ahLMopb:B:c:C:D:e:f:g:n:s:E:")) != -1) {
+  while ((opt = getopt(argc, argv, "vahLMopb:B:c:C:D:e:f:g:n:s:E:")) != -1) {
     switch (opt) {
       case 'a':
         avoid_blocking_overlap = 1;
@@ -845,6 +850,9 @@ int main(int argc, char *argv[]) {
         break;
       case 'o':
         pgbdd_var_ord = true;
+        break;
+      case 'v':
+        verbosity_level = 1;;
         break;
       default:
         fprintf(stderr, "Unrecognized option, exiting\n");
@@ -945,8 +953,10 @@ int main(int argc, char *argv[]) {
   
   int nEdges = 0;
   // Print Graph Density
-  for (int i = 0; i < partition_sizes[0]; i++) nEdges += graph_get_num_neighbors(g,0,i,1);
-  printf("%f\n",nEdges/(1.0*partition_sizes[0]* partition_sizes[1]));
+  if (verbosity_level > 0) {
+    for (int i = 0; i < partition_sizes[0]; i++) nEdges += graph_get_num_neighbors(g,0,i,1);
+    printf("%f\n",nEdges/(1.0*partition_sizes[0]* partition_sizes[1]));
+  }
 
   return 0;
 }
