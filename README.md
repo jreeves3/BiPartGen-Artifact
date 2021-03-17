@@ -12,6 +12,7 @@ General Options
 -M                             At-Most-One encoding applied also to both partitions.
 -L                             At-Least-One encoding applied also to both partitions.
 -E [Int]                       Number of edges in random graph.
+-v                             Verbose (display density of generated bipartite graph).
 
 Mchess Additional Options
 -C [NORMAL|TORUS|CYLINDER]  Type of mutilated chessboard.
