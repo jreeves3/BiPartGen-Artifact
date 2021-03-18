@@ -5,7 +5,7 @@ mkdir -p $dir"/random130"
 
 edgeCount=130
 
-for encoding in "direct" "sinz" "split" "mixed"
+for encoding in "direct" "sinz" "linear" "mixed"
 do
     mkdir -p $dir"/random130/"$encoding
 

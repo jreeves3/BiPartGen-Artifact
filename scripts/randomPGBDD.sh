@@ -5,7 +5,7 @@ mkdir -p $dir"/randomPGBDD130Ord"
 
 edgeCount=130
 
-for encoding in "sinz" "split"
+for encoding in "sinz" "linear"
 do
     mkdir -p $dir"/randomPGBDD130Ord/"$encoding
 

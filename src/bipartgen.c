@@ -5,7 +5,7 @@
  *  ///////////////////////////////////////////////////////////////////////////
  *  // POTENTIAL IMPROVEMENTS
  *  ///////////////////////////////////////////////////////////////////////////
- *  
+ *
  *  Many of the graph add() and remove() functions take in (p1, n1, p2, n2)
  *  arguments, which could take up less space if encapsulated in a struct.
  *
@@ -88,11 +88,11 @@ static void print_help(char *runtime_path) {
   printf("  -a            Perfect matchings and witnesses do not overlap\n");
   printf("  -b <size>     Block perfect matchings up to this size.\n");
   printf("  -B <float>    If < 1.0, block prob. if >= 1, int, num per node.\n");
-  printf("  -c <int>      Cardinality constraint\n");
+  printf("  -c <int>      Cardinality (difference in partition size)\n");
+  printf("  -E <int>      Edge count for graph\n");
   printf("  -C <method>   Specify chess variant (NORMAL|TORUS|CYLINDER).\n");
-  printf("  -d <float>    Density delta for random graphs.\n");
   printf("  -D <float>    Density for random graphs.\n");
-  printf("  -e <method>   Specify encoding variant (direct|split|sinz).\n");
+  printf("  -e <method>   Specify encoding variant (direct|linear|sinz|mixed).\n");
   printf("  -f <name>     Output file to write CNF to.\n");
   printf("  -g <graph>    Specify type of problem (chess|pigeon|random).\n");
   printf("  -h            Display this help message.\n");
@@ -100,7 +100,9 @@ static void print_help(char *runtime_path) {
   printf("  -M            Use an additional \"At most one\" encoding.\n");
   printf("  -n <size>     Size of problem (nxn chess, n holes, n nodes).\n");
   printf("  -s <int>      Randomization seed, if applicable.\n");
-  printf("  -w <int>      Width for random graphs.\n");
+  printf("  -p            Bucket permutation (used for Sinz encoding).\n");
+  printf("  -o            Variable ordering (used for linear and Sinz encoding).\n");
+  printf("  -v            Verbosity level 1 (print graph density).\n");
 }
 
 /********** Graph CNF Encodings ************/
@@ -122,7 +124,7 @@ static void direct_atMost_encoding(FILE *f, int *edges, int size_edges) {
   }
 }
 
-/** @brief Write split At Most 1 encoding.
+/** @brief Write linear At Most 1 encoding.
  *
  *  @param f              A pointer to the output file.
  *  @param edges     An array of the connected nodes.
@@ -132,30 +134,30 @@ static void direct_atMost_encoding(FILE *f, int *edges, int size_edges) {
  *
  *  @return Value of next availiable variable ID.
  */
-static int split_atMost_encoding(
-  FILE *f, int *edges, int size_edges, int curr_i, int ex_var) {
+static int linear_atMost_encoding(
+                                  FILE *f, int *edges, int size_edges, int curr_i, int ex_var) {
   
-  bool split = (size_edges-curr_i>4)?true:false;
-  int s = (split)?4:(size_edges-curr_i);
-  int split_edges[s];
+  bool linear = (size_edges-curr_i>4)?true:false;
+  int s = (linear)?4:(size_edges-curr_i);
+  int linear_edges[s];
   
   for(int i=0; i<s; i++) {
-    if (i == 3 && split) {
-      split_edges[i] = ex_var;
+    if (i == 3 && linear) {
+      linear_edges[i] = ex_var;
       if (pgbdd_var_ord) {
-        aux_var_map1[split_edges[2]] = ex_var;
+        aux_var_map1[linear_edges[2]] = ex_var;
       }
     }
-    else split_edges[i] = edges[i+curr_i];
+    else linear_edges[i] = edges[i+curr_i];
   }
   
-  // Direct Encoding for the split
-  direct_atMost_encoding(f, split_edges, s);
+  // Direct Encoding for the linear
+  direct_atMost_encoding(f, linear_edges, s);
   
-  if (split) {
+  if (linear) {
     edges[curr_i+2] = -ex_var;
     // Recursive Call for remaining variables
-    return split_atMost_encoding(f,edges,size_edges,curr_i+2,ex_var+1);
+    return linear_atMost_encoding(f,edges,size_edges,curr_i+2,ex_var+1);
   }
   else return ex_var;
 }
@@ -232,16 +234,16 @@ static int sinz_atMost_encoding(FILE *f, int *edges, int size_edges, int sinz_va
 }
 
 /** @brief Get edge variable ID.
-  *
-  *   Edge variable IDs given for evert possible edge. Count up from all
-  *   possible edges of first node in first patition (partitions ordered), then
-  *   second node, etc.
-  *
-  *  @param g  A pointer to the graph structure.
-  *  @param p1 The index of the partition the node is in.
-  *  @param n1 The node number of the node.
-  *  @param p2 The index of the partition the node is "querying."
-  *  @param n2 The node number of connected node from p2.
+ *
+ *   Edge variable IDs given for evert possible edge. Count up from all
+ *   possible edges of first node in first patition (partitions ordered), then
+ *   second node, etc.
+ *
+ *  @param g  A pointer to the graph structure.
+ *  @param p1 The index of the partition the node is in.
+ *  @param n1 The node number of the node.
+ *  @param p2 The index of the partition the node is "querying."
+ *  @param n2 The node number of connected node from p2.
  */
 static int get_variableID(graph_t *g, int p1, int n1, int p2, int n2) {
   int s = (p1<p2)?p2:p1;
@@ -261,11 +263,11 @@ static int get_variableID(graph_t *g, int p1, int n1, int p2, int n2) {
  *  @param atLSize Size of atLeast1.
  */
 static void write_cnf_from_graph(
-  graph_t *g, FILE *f, char* en, int* atMost1, int* atLeast1,
-  int atMSize, int atLSize) {
+                                 graph_t *g, FILE *f, char* en, int* atMost1, int* atLeast1,
+                                 int atMSize, int atLSize) {
   
   const int *partition_sizes = graph_get_partition_sizes(g);
-
+  
   // Vaiable name for every possible edge (many will be unused)
   int nvars = partition_sizes[0] * partition_sizes[1];
   int ex_var = nvars+1;
@@ -289,7 +291,7 @@ static void write_cnf_from_graph(
       free(connected_nodes);
     }
   }
-
+  
   int encCnt = 0;
   for(int p = 0; p < atMSize; p++) {
     p1 = atMost1[p];
@@ -306,7 +308,7 @@ static void write_cnf_from_graph(
             en = "sinz";
           }
           else {
-            en = "split";
+            en = "linear";
           }
           mixed_encodings[encCnt++] = en;
         }
@@ -326,8 +328,8 @@ static void write_cnf_from_graph(
           }
           // here for pgbdd options
         }
-        else if (strcmp(en,"split")==0) {
-          // Split encoding
+        else if (strcmp(en,"linear")==0) {
+          // linear encoding
           if (*size_nodes == 2) nAtMost += 1;
           else {
             nAtMost += 3*(*size_nodes) - 6;
@@ -341,29 +343,29 @@ static void write_cnf_from_graph(
   
   
   nclauses = nAtMost + nAtLeast;
-
+  
   // Blocked clauses here - check options
   if (blocked_clause_size >= 2) {
     graph_generate_perfect_matchings(g, blocked_clause_size);
-
+    
     // TODO remove later - sanity check
     /*
-    for (int i = 0; i < partition_sizes[p1]; i++) {
-      if (graph_get_num_matchings(g, 0, i, 1) > 0) {
-        matching_t *m = graph_get_first_matching(g, 0, i, 1);
-        while (m != NULL) {
-          graph_print_perfect_matching(m);
-          m = graph_get_next_matching(m);
-        }
-      }
-    }
-    printf("\n");
-    */
-
+     for (int i = 0; i < partition_sizes[p1]; i++) {
+     if (graph_get_num_matchings(g, 0, i, 1) > 0) {
+     matching_t *m = graph_get_first_matching(g, 0, i, 1);
+     while (m != NULL) {
+     graph_print_perfect_matching(m);
+     m = graph_get_next_matching(m);
+     }
+     }
+     }
+     printf("\n");
+     */
+    
     if (blocking_method == PROB) {
       srand(rand_seed);
     }
-
+    
     /* We consider all perfect matchings on each set of left and right nodes.
      *
      * We must leave at least one perfect matching on those nodes, but are
@@ -379,7 +381,7 @@ static void write_cnf_from_graph(
     // TODO how does COUNT get implemented?
     const int p1_size = partition_sizes[0];
     const int p2_size = partition_sizes[1];
-
+    
     // Keep track of edges involved in PMs, and edges involved as witnesses
     int blocked_edges[p1_size][p2_size];
     int witness_edges[p1_size][p2_size];
@@ -389,7 +391,7 @@ static void write_cnf_from_graph(
         witness_edges[i][j] = 0;
       }
     }
-
+    
     int matchings_blocked = 0;
     for (int i = 0; i < p1_size; i++) {
       // int num_blocked = 0;
@@ -398,12 +400,12 @@ static void write_cnf_from_graph(
         while (m != NULL) {
           int num_similar = graph_get_num_similar_matchings(m);
           assert(num_similar >= 2);
-
+          
           // Alias various data in the matching
           int size = graph_get_matching_size(m);
           const int *p1s = graph_get_matching_left_nodes(m);
           const int *p2s = graph_get_matching_right_nodes(m);
-
+          
           // Deterministic, random, avoid
           if (avoid_blocking_overlap) {
             /* For each set of left and right nodes, we want to find one PM
@@ -416,7 +418,7 @@ static void write_cnf_from_graph(
             int mi;
             for (mi = 0; mi < num_similar && !found_witness; mi++) {
               const int *p2o = graph_get_matching_ordered_right_nodes(m);
-
+              
               // Check all edges in this ordering to see if any are blocked
               int witness_candidate = 1;
               for (int n = 0; n < size; n++) {
@@ -425,7 +427,7 @@ static void write_cnf_from_graph(
                   break;
                 }
               }
-
+              
               // If a witness candidate made it through, mark the edges
               if (witness_candidate) {
                 found_witness = 1;
@@ -438,19 +440,19 @@ static void write_cnf_from_graph(
               
               m = graph_get_next_matching(m);
             }
-
-            // Now if witness found, block remaining 
+            
+            // Now if witness found, block remaining
             if (found_witness) {
               for (; mi > 0; mi--) {
                 m = graph_get_prev_matching(m);
               }
-
+              
               for (mi = 0; mi < num_similar; mi++) {
                 if (mi == witness_idx) {
                   m = graph_get_next_matching(m);
                   continue;
                 }
-
+                
                 // Block ordering only if doesn't intersect witness edges
                 const int *p2o = graph_get_matching_ordered_right_nodes(m);
                 int blocking_candidate = 1;
@@ -460,14 +462,14 @@ static void write_cnf_from_graph(
                     break;
                   }
                 }
-
+                
                 if (blocking_candidate) {
                   matchings_blocked++;
                   for (int n = 0; n < size; n++) {
                     blocked_edges[p1s[n]][p2s[p2o[n]]]++;
                   }
                 }
-
+                
                 m = graph_get_next_matching(m);
               }
             }
@@ -485,12 +487,12 @@ static void write_cnf_from_graph(
         }
       }
     }
-
+    
     // Now add the number of blocked clauses
     nclauses += matchings_blocked;
     printf("%d matchings were blocked\n", matchings_blocked);
   }
-
+  
   // Write Header
   fprintf(f, "p cnf %d %d\n", nvars, nclauses);
   
@@ -511,7 +513,7 @@ static void write_cnf_from_graph(
       free(connected_nodes);
     }
   }
-    
+  
   encCnt = 0;
   for(int p = 0; p < atMSize; p++) {
     // Write atMost constraints
@@ -530,20 +532,20 @@ static void write_cnf_from_graph(
         if (strcmp(en,"direct")==0) {
           // Direct encoding
           direct_atMost_encoding(f, edges, *size_nodes);
-
+          
         } else if (strcmp(en,"sinz")==0) {
           // Sinz encoding
           ex_var = sinz_atMost_encoding(f, edges, *size_nodes, ex_var);
         }
-        else if (strcmp(en,"split")==0) {
-          ex_var = split_atMost_encoding(f,edges,*size_nodes,0,ex_var);
+        else if (strcmp(en,"linear")==0) {
+          ex_var = linear_atMost_encoding(f,edges,*size_nodes,0,ex_var);
         }
         free(edges);
       }
       free(connected_nodes);
     }
   }
-
+  
   // TODO hard-coded 0 and 1 bipartite
   // Write blocked clauses - same identification protocol as before
   fprintf(f, "c Below are the blocked clauses from perfect matchings\n");
@@ -551,10 +553,10 @@ static void write_cnf_from_graph(
     if (blocking_method == PROB) {
       srand(rand_seed);
     }
-
+    
     const int p1_size = partition_sizes[0];
     const int p2_size = partition_sizes[1];
-
+    
     // Keep track of edges involved in PMs, and edges involved as witnesses
     int blocked_edges[p1_size][p2_size];
     int witness_edges[p1_size][p2_size];
@@ -564,7 +566,7 @@ static void write_cnf_from_graph(
         witness_edges[i][j] = 0;
       }
     }
-
+    
     for (int i = 0; i < p1_size; i++) {
       // int num_blocked = 0;
       if (graph_get_num_matchings(g, 0, i, 1) > 0) {
@@ -572,12 +574,12 @@ static void write_cnf_from_graph(
         while (m != NULL) {
           int num_similar = graph_get_num_similar_matchings(m);
           assert(num_similar >= 2);
-
+          
           // Alias various data in the matching
           int size = graph_get_matching_size(m);
           const int *p1s = graph_get_matching_left_nodes(m);
           const int *p2s = graph_get_matching_right_nodes(m);
-
+          
           // Deterministic, random, avoid
           if (avoid_blocking_overlap) {
             /* For each set of left and right nodes, we want to find one PM
@@ -590,7 +592,7 @@ static void write_cnf_from_graph(
             int mi;
             for (mi = 0; mi < num_similar && !found_witness; mi++) {
               const int *p2o = graph_get_matching_ordered_right_nodes(m);
-
+              
               // Check all edges in this ordering to see if any are blocked
               int witness_candidate = 1;
               for (int n = 0; n < size; n++) {
@@ -599,7 +601,7 @@ static void write_cnf_from_graph(
                   break;
                 }
               }
-
+              
               // If a witness candidate made it through, mark the edges
               if (witness_candidate) {
                 found_witness = 1;
@@ -612,19 +614,19 @@ static void write_cnf_from_graph(
               
               m = graph_get_next_matching(m);
             }
-
-            // Now if witness found, block remaining 
+            
+            // Now if witness found, block remaining
             if (found_witness) {
               for (; mi > 0; mi--) {
                 m = graph_get_prev_matching(m);
               }
-
+              
               for (mi = 0; mi < num_similar; mi++) {
                 if (mi == witness_idx) {
                   m = graph_get_next_matching(m);
                   continue;
                 }
-
+                
                 // Block ordering only if doesn't intersect witness edges
                 const int *p2o = graph_get_matching_ordered_right_nodes(m);
                 int blocking_candidate = 1;
@@ -634,24 +636,24 @@ static void write_cnf_from_graph(
                     break;
                   }
                 }
-
+                
                 // Add the clause to the CNF
                 if (blocking_candidate) {
                   for (int n = 0; n < size; n++) {
                     blocked_edges[p1s[n]][p2s[p2o[n]]]++;
                   }
-
+                  
                   for (int n = 0; n < size; n++) {
-                    fprintf(f, "-%d ", 
-                        get_variableID(g, 0, p1s[n], 1, p2s[p2o[n]]));
+                    fprintf(f, "-%d ",
+                            get_variableID(g, 0, p1s[n], 1, p2s[p2o[n]]));
                   }
                   fprintf(f, "0\n");
-
+                  
                   printf("Blocking ");
                   graph_print_perfect_matching(m);
-
+                  
                 }
-
+                
                 m = graph_get_next_matching(m);
               }
             }
@@ -659,16 +661,16 @@ static void write_cnf_from_graph(
             for (int n = 0; n < num_similar - 1; n++) {
               m = graph_get_next_matching(m);
               const int *p2o = graph_get_matching_ordered_right_nodes(m);
-
+              
               if (rand() % BLOCKED_CLAUSE_PROB_DENOM < blocked_clause_prob) {
                 for (int n = 0; n < size; n++) {
-                  fprintf(f, "-%d ", 
-                      get_variableID(g, 0, p1s[n], 1, p2s[p2o[n]]));
+                  fprintf(f, "-%d ",
+                          get_variableID(g, 0, p1s[n], 1, p2s[p2o[n]]));
                 }
                 fprintf(f, "0\n");
               }
             }
-
+            
             m = graph_get_next_matching(m);
           } else {
             // Block all but one in this set
@@ -676,30 +678,30 @@ static void write_cnf_from_graph(
               m = graph_get_next_matching(m);
               const int *p2o = graph_get_matching_ordered_right_nodes(m);
               for (int n = 0; n < size; n++) {
-                fprintf(f, "-%d ", 
-                    get_variableID(g, 0, p1s[n], 1, p2s[p2o[n]]));
+                fprintf(f, "-%d ",
+                        get_variableID(g, 0, p1s[n], 1, p2s[p2o[n]]));
               }
               fprintf(f, "0\n");
-
+              
               // printf("Blocking ");
               // graph_print_perfect_matching(m);
             }
-          
+            
             m = graph_get_next_matching(m);
           }
-
+          
           /*
-          // If COUNT exceeded for this node, advance to next size for node
-          if (blocking_method == COUNT && num_blocked == blocked_clause_prob) {
-          // printf("Reached count on %d, skipping to size %d\n", 
-          //    i, size + 1);
-          while (m != NULL && size == graph_get_matching_size(m)) {
-          m = graph_get_next_matching(m);
-          }
-
-          num_blocked = 0;
-          }
-          */
+           // If COUNT exceeded for this node, advance to next size for node
+           if (blocking_method == COUNT && num_blocked == blocked_clause_prob) {
+           // printf("Reached count on %d, skipping to size %d\n",
+           //    i, size + 1);
+           while (m != NULL && size == graph_get_matching_size(m)) {
+           m = graph_get_next_matching(m);
+           }
+           
+           num_blocked = 0;
+           }
+           */
         }
       }
     }
@@ -717,7 +719,7 @@ void write_pgbdd_var_ord(graph_t *g) {
     for(int j = 0; j < *neigh_size; j++) {
       fprintf(pgbdd_var_f, "%d \n", get_variableID(g, atL,i,atM,neighbors[j]));
       if (aux_var_map1[get_variableID(g, atL,i,atM,neighbors[j])] > 0) fprintf(pgbdd_var_f, "%d \n", aux_var_map1[get_variableID(g, atL,i,atM,neighbors[j])]);
-//      if (sinz_var_map2[get_variableID(g, atL,i,atM,neighbors[j])] > 0) fprintf(pgbdd_var_f, "%d \n", sinz_var_map2[get_variableID(g, atL,i,atM,neighbors[j])]);
+      //      if (sinz_var_map2[get_variableID(g, atL,i,atM,neighbors[j])] > 0) fprintf(pgbdd_var_f, "%d \n", sinz_var_map2[get_variableID(g, atL,i,atM,neighbors[j])]);
     }
     free(neighbors);
   }
@@ -768,7 +770,7 @@ void write_pgbdd_bucket(graph_t *g) {
 
 /** @brief Handles main execution. Parses CLI. */
 int main(int argc, char *argv[]) {
-
+  
   FILE *f = NULL;
   mchess_t *mc = NULL;
   pigeon_t *pigeon = NULL;
@@ -782,9 +784,9 @@ int main(int argc, char *argv[]) {
   int cardinality = 1;
   float density = 1.0;
   int nedges = 0;
-
-
-
+  
+  
+  
   // Parse command line arguments
   extern char *optarg;
   char opt;
@@ -859,7 +861,7 @@ int main(int argc, char *argv[]) {
         exit(-1);
     }
   }
-
+  
   if (fvalue == NULL || gvalue == NULL) {
     printf("Program requires filename -f and graph generator -g options\n");
     exit(-1);
@@ -872,7 +874,7 @@ int main(int argc, char *argv[]) {
     printf("Must choose between edge count or density to bound size of random graph\n");
     exit(-1);
   }
-
+  
   // Generate graph
   if (strcmp(gvalue,"chess")==0) {
     // mutilated chess
@@ -946,7 +948,7 @@ int main(int argc, char *argv[]) {
   
   // Write CNF formula of graph g to file f with encoding opt evalue
   write_cnf_from_graph(g, f, evalue, atMost, atLeast, atMSize, atLSize);
-
+  
   fclose(f);
   if (pgbdd_bucket) write_pgbdd_bucket(g);
   if (pgbdd_var_ord) write_pgbdd_var_ord(g);
@@ -957,6 +959,6 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < partition_sizes[0]; i++) nEdges += graph_get_num_neighbors(g,0,i,1);
     printf("%f\n",nEdges/(1.0*partition_sizes[0]* partition_sizes[1]));
   }
-
+  
   return 0;
 }
