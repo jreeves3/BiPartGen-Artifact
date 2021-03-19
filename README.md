@@ -5,13 +5,14 @@ Generate bipartite graphs and the associated CNF formulas
 ```bash
 General Options
 -g [chess|pigeon|random]       Type of graph to generate.
--n [Int]                       Size of chess NxN, number of holes in PHP N, or number of nodes in random graph.
--e [direct|split|sinz|mixed]   At Most 1 encoding, mixed uses random encoding for each node independently.
+-n [Int]                       Size of smaller partition in graph, or nxn board for chess?.
+-e [direct|linear|sinz|mixed]  At-Most-One encoding, mixed randomly selects encoding for each node.
 -f [FNAME]                     Filename to write cnf formula in dimacs format.
 -s [Int]                       Seed for random number generator.
--M                             At Most 1 encoding applied also to both partitions.
--L                             At Least 1 encoding applied also to both partitions.
+-M                             At-Most-One encoding applied also to both partitions.
+-L                             At-Least-One encoding applied also to both partitions.
 -E [Int]                       Number of edges in random graph.
+-v                             Verbose (display density of generated bipartite graph).
 
 Mchess Additional Options
 -C [NORMAL|TORUS|CYLINDER]  Type of mutilated chessboard.
@@ -21,30 +22,40 @@ Random Graph Additional Options
 -c [Int]           Difference in number of nodes between partitions.
 
 PGBDD Variants
--p                 Bucket and variable ordering for Sinz encoding
--o                 Variable ordering for either Sinz or split encoding
+-p                 Bucket and variable ordering for Sinz encoding (FNAME_bucket.order, FNAME_variable.order).
+-o                 Variable ordering for either Sinz or linear encoding (FNAME_variable.order).
 
 Symmetry-Breaking Clauses
 -b ...
 
 ```
 
-scripts: scripts to generate formulas.
+## scripts
+Scripts to generate a subset of benchmark formulas.
+* random - random graphs with 130 edges, n from [11,20], encodings from [direct,sinz,linear,mixed], -A (default) and -B (Exactly-One) constraints
+* randomPGBDD - random graphs with 130 edges, n from [11,20], encodings from [sinz,linear], -A (default) constraints, bucket permutation (-Sched) and variable ordering (-Ord) options. (Note: this outputs .._variable.order, .._bucket.order files with usecase shown in the example section below)
+* symmetry-breaking - 
 
 
-data: Excel spreadsheet with data labeled by Figure in the paper.
+## data 
+Excel spreadsheets (Random Experiments, Symmetry-Breaking Experiments) with sheets labeled by Figure #.
 
+## Solvers
+* [Kissat](https://github.com/arminbiere/kissat)
+* [Lingeling](https://github.com/arminbiere/lingeling)
+* [SaDiCaL](http://fmv.jku.at/sadical)
+* [PGBDD](https://github.com/rebryant/pgbdd)
 
 ## Example
 ```bash
-# Mutilated chessboard with 
+# Mutilated chessboard nxn with direct encoding
 > ./bipartgen -g chess -f chess4 -n 4 -e direct
 
 # Pigeonhole with 8 holes, 9 pigeons, with exactly one constraints for each node using sinz
 > ./bipartgen -g pigeon -f pigeon8 -n 8 -e sinz -M -L
 
-# Random graph with 15 edges using split encoding
-> ./bipartgen -g random -f random -n 6 -e split -E 15
+# Random graph with 15 edges using linear encoding
+> ./bipartgen -g random -f random -n 6 -e linear -E 15
 
 ```
 ## Running PGBDD Variants
