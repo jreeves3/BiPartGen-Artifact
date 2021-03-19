@@ -55,6 +55,9 @@ Excel spreadsheets (Random Experiments, Symmetry-Breaking Experiments) with shee
 # Random graph with 15 edges using linear encoding
 > ./bipartgen -g random -f random -n 6 -e linear -E 15
 
+# Mutilated chessboard instance with K22, 6-cycle, and K33s symmetry-breaking clauses added
+> ./bipartgen -g chess -f sb_chess8 -n 8 -e direct -b 3
+
 ```
 ## Running PGBDD Variants
 ```bash
