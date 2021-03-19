@@ -59,37 +59,8 @@
 #include "pigeon.h"
 #include "additionalgraphs.h"
 
-#define BLOCKED_CLAUSE_PROB_DENOM 1000
-
-/** @brief Method for how perfect matchings are blocked.
- *
- *  ALL means that all perfect matchings that can be blocked, are blocked.
- *  They are blocked in lexicographical order.
- *
- *  PROB means that the perfect matchings are probabilistically added or not.
- *  The probability is specified with the -B flag.
- *
- *  COUNT means that the first X perfect matchings are blocked for any fixed
- *  first node. They are blocked in lexicographic order. COUNT INFTY reduces
- *  to ALL.
- */
-typedef enum perfect_matching_blocking_method {
-  ALL, PROB, COUNT
-} blocking_method_t;
-
 /** @brief Generates blocked clauses of perfect matchings up to this size. */
 static int blocked_clause_size = -1;
-
-/** @brief Either adds blocked clauses with this probability, or adds this many
- *         blocked clauses for each fixed first node.
- *
- *  If the -B flag is a float that is less than 1, then it is converted into
- *  an integer (out of 1000) to serve as the odds of blocking any perfect
- *  matching. Otherwise, the first X perfect matchings are blocked.
- */
-static int blocked_clause_prob;
-static blocking_method_t blocking_method = ALL;
-static int avoid_blocking_overlap = 0;
 
 static int rand_seed = 0;
 
@@ -103,12 +74,9 @@ static int verbosity_level = 0;
 static void print_help(char *runtime_path) {
   printf("\n%s: BiPartGen Hard CNF Generator\n", runtime_path);
   printf("Developed by: Joseph Reeves and Cayden Codel\n\n");
-  printf("  -a            Perfect matchings and witnesses do not overlap\n");
   printf("  -b <size>     Block perfect matchings up to this size.\n");
-  printf("  -B <float>    If < 1.0, block prob. if >= 1, int, num per node.\n");
   printf("  -c <int>      Cardinality (difference in partition size)\n");
   printf("  -E <int>      Edge count for graph\n");
-  printf("  -C <method>   Specify chess variant (NORMAL|TORUS|CYLINDER).\n");
   printf("  -D <float>    Density for random graphs.\n");
   printf("  -e <method>   Specify encoding variant (direct|linear|sinz|mixed).\n");
   printf("  -f <name>     Output file to write CNF to.\n");
@@ -366,24 +334,6 @@ static void write_cnf_from_graph(
   if (blocked_clause_size >= 2) {
     graph_generate_perfect_matchings(g, blocked_clause_size);
     
-    // TODO remove later - sanity check
-    /*
-     for (int i = 0; i < partition_sizes[p1]; i++) {
-     if (graph_get_num_matchings(g, 0, i, 1) > 0) {
-     matching_t *m = graph_get_first_matching(g, 0, i, 1);
-     while (m != NULL) {
-     graph_print_perfect_matching(m);
-     m = graph_get_next_matching(m);
-     }
-     }
-     }
-     printf("\n");
-     */
-    
-    if (blocking_method == PROB) {
-      srand(rand_seed);
-    }
-    
     /* We consider all perfect matchings on each set of left and right nodes.
      *
      * We must leave at least one perfect matching on those nodes, but are
@@ -396,7 +346,6 @@ static void write_cnf_from_graph(
      *   blockings.
      */
     // TODO hard-coded bipartite
-    // TODO how does COUNT get implemented?
     const int p1_size = partition_sizes[0];
     const int p2_size = partition_sizes[1];
     
@@ -412,96 +361,14 @@ static void write_cnf_from_graph(
     
     int matchings_blocked = 0;
     for (int i = 0; i < p1_size; i++) {
-      // int num_blocked = 0;
       if (graph_get_num_matchings(g, 0, i, 1) > 0) {
         matching_t *m = graph_get_first_matching(g, 0, i, 1);
         while (m != NULL) {
           int num_similar = graph_get_num_similar_matchings(m);
           assert(num_similar >= 2);
           
-          // Alias various data in the matching
-          int size = graph_get_matching_size(m);
-          const int *p1s = graph_get_matching_left_nodes(m);
-          const int *p2s = graph_get_matching_right_nodes(m);
-          
-          // Deterministic, random, avoid
-          if (avoid_blocking_overlap) {
-            /* For each set of left and right nodes, we want to find one PM
-             * that will act as a witness. The rest can be blocked, assuming
-             * the edges don't intersect those used in other witnesses.
-             */
-            // Look for a witness first
-            int found_witness = 0;
-            int witness_idx = 0;
-            int mi;
-            for (mi = 0; mi < num_similar && !found_witness; mi++) {
-              const int *p2o = graph_get_matching_ordered_right_nodes(m);
-              
-              // Check all edges in this ordering to see if any are blocked
-              int witness_candidate = 1;
-              for (int n = 0; n < size; n++) {
-                if (blocked_edges[p1s[n]][p2s[p2o[n]]]) {
-                  witness_candidate = 0;
-                  break;
-                }
-              }
-              
-              // If a witness candidate made it through, mark the edges
-              if (witness_candidate) {
-                found_witness = 1;
-                witness_idx = mi;
-                for (int n = 0; n < size; n++) {
-                  witness_edges[p1s[n]][p2s[p2o[n]]]++;
-                }
-                break;
-              }
-              
-              m = graph_get_next_matching(m);
-            }
-            
-            // Now if witness found, block remaining
-            if (found_witness) {
-              for (; mi > 0; mi--) {
-                m = graph_get_prev_matching(m);
-              }
-              
-              for (mi = 0; mi < num_similar; mi++) {
-                if (mi == witness_idx) {
-                  m = graph_get_next_matching(m);
-                  continue;
-                }
-                
-                // Block ordering only if doesn't intersect witness edges
-                const int *p2o = graph_get_matching_ordered_right_nodes(m);
-                int blocking_candidate = 1;
-                for (int n = 0; n < size; n++) {
-                  if (witness_edges[p1s[n]][p2s[p2o[n]]]) {
-                    blocking_candidate = 0;
-                    break;
-                  }
-                }
-                
-                if (blocking_candidate) {
-                  matchings_blocked++;
-                  for (int n = 0; n < size; n++) {
-                    blocked_edges[p1s[n]][p2s[p2o[n]]]++;
-                  }
-                }
-                
-                m = graph_get_next_matching(m);
-              }
-            }
-          } else if (blocking_method == PROB) {
-            for (int n = 0; n < num_similar - 1; n++) {
-              if (rand() % BLOCKED_CLAUSE_PROB_DENOM < blocked_clause_prob) {
-                matchings_blocked++;
-              }
-            }
-            m = graph_get_next_set(m);
-          } else {
-            matchings_blocked += num_similar - 1;
-            m = graph_get_next_set(m);
-          }
+          matchings_blocked += num_similar - 1;
+          m = graph_get_next_set(m);
         }
       }
     }
@@ -568,10 +435,6 @@ static void write_cnf_from_graph(
   // Write blocked clauses - same identification protocol as before
   fprintf(f, "c Below are the blocked clauses from perfect matchings\n");
   if (blocked_clause_size >= 2) {
-    if (blocking_method == PROB) {
-      srand(rand_seed);
-    }
-    
     const int p1_size = partition_sizes[0];
     const int p2_size = partition_sizes[1];
     
@@ -597,129 +460,19 @@ static void write_cnf_from_graph(
           int size = graph_get_matching_size(m);
           const int *p1s = graph_get_matching_left_nodes(m);
           const int *p2s = graph_get_matching_right_nodes(m);
-          
-          // Deterministic, random, avoid
-          if (avoid_blocking_overlap) {
-            /* For each set of left and right nodes, we want to find one PM
-             * that will act as a witness. The rest can be blocked, assuming
-             * the edges don't intersect those used in other witnesses.
-             */
-            // Look for a witness first
-            int found_witness = 0;
-            int witness_idx = 0;
-            int mi;
-            for (mi = 0; mi < num_similar && !found_witness; mi++) {
-              const int *p2o = graph_get_matching_ordered_right_nodes(m);
-              
-              // Check all edges in this ordering to see if any are blocked
-              int witness_candidate = 1;
-              for (int n = 0; n < size; n++) {
-                if (blocked_edges[p1s[n]][p2s[p2o[n]]]) {
-                  witness_candidate = 0;
-                  break;
-                }
-              }
-              
-              // If a witness candidate made it through, mark the edges
-              if (witness_candidate) {
-                found_witness = 1;
-                witness_idx = mi;
-                for (int n = 0; n < size; n++) {
-                  witness_edges[p1s[n]][p2s[p2o[n]]]++;
-                }
-                break;
-              }
-              
-              m = graph_get_next_matching(m);
-            }
-            
-            // Now if witness found, block remaining
-            if (found_witness) {
-              for (; mi > 0; mi--) {
-                m = graph_get_prev_matching(m);
-              }
-              
-              for (mi = 0; mi < num_similar; mi++) {
-                if (mi == witness_idx) {
-                  m = graph_get_next_matching(m);
-                  continue;
-                }
-                
-                // Block ordering only if doesn't intersect witness edges
-                const int *p2o = graph_get_matching_ordered_right_nodes(m);
-                int blocking_candidate = 1;
-                for (int n = 0; n < size; n++) {
-                  if (witness_edges[p1s[n]][p2s[p2o[n]]]) {
-                    blocking_candidate = 0;
-                    break;
-                  }
-                }
-                
-                // Add the clause to the CNF
-                if (blocking_candidate) {
-                  for (int n = 0; n < size; n++) {
-                    blocked_edges[p1s[n]][p2s[p2o[n]]]++;
-                  }
-                  
-                  for (int n = 0; n < size; n++) {
-                    fprintf(f, "-%d ",
-                            get_variableID(g, 0, p1s[n], 1, p2s[p2o[n]]));
-                  }
-                  fprintf(f, "0\n");
-                  
-                  printf("Blocking ");
-                  graph_print_perfect_matching(m);
-                  
-                }
-                
-                m = graph_get_next_matching(m);
-              }
-            }
-          } else if (blocking_method == PROB) {
-            for (int n = 0; n < num_similar - 1; n++) {
-              m = graph_get_next_matching(m);
-              const int *p2o = graph_get_matching_ordered_right_nodes(m);
-              
-              if (rand() % BLOCKED_CLAUSE_PROB_DENOM < blocked_clause_prob) {
-                for (int n = 0; n < size; n++) {
-                  fprintf(f, "-%d ",
-                          get_variableID(g, 0, p1s[n], 1, p2s[p2o[n]]));
-                }
-                fprintf(f, "0\n");
-              }
-            }
-            
+
+          // Block all but one in this set
+          for (int m_idx = 0; m_idx < num_similar - 1; m_idx++) {
             m = graph_get_next_matching(m);
-          } else {
-            // Block all but one in this set
-            for (int m_idx = 0; m_idx < num_similar - 1; m_idx++) {
-              m = graph_get_next_matching(m);
-              const int *p2o = graph_get_matching_ordered_right_nodes(m);
-              for (int n = 0; n < size; n++) {
-                fprintf(f, "-%d ",
-                        get_variableID(g, 0, p1s[n], 1, p2s[p2o[n]]));
-              }
-              fprintf(f, "0\n");
-              
-              // printf("Blocking ");
-              // graph_print_perfect_matching(m);
+            const int *p2o = graph_get_matching_ordered_right_nodes(m);
+            for (int n = 0; n < size; n++) {
+              fprintf(f, "-%d ",
+                  get_variableID(g, 0, p1s[n], 1, p2s[p2o[n]]));
             }
-            
-            m = graph_get_next_matching(m);
+            fprintf(f, "0\n");
           }
-          
-          /*
-           // If COUNT exceeded for this node, advance to next size for node
-           if (blocking_method == COUNT && num_blocked == blocked_clause_prob) {
-           // printf("Reached count on %d, skipping to size %d\n",
-           //    i, size + 1);
-           while (m != NULL && size == graph_get_matching_size(m)) {
-           m = graph_get_next_matching(m);
-           }
-           
-           num_blocked = 0;
-           }
-           */
+
+          m = graph_get_next_matching(m);
         }
       }
     }
@@ -794,7 +547,7 @@ int main(int argc, char *argv[]) {
   pigeon_t *pigeon = NULL;
   graph_var_t *gt = NULL;
   graph_t *g = NULL;
-  char *gvalue = NULL, *fvalue = NULL, *evalue ="direct", *mchessOpt = "NORMAL";
+  char *gvalue = NULL, *fvalue = NULL, *evalue ="direct";
   const int *partition_sizes;
   int nvalue=4; // Default evalue to direct encoding, nvalue to 4
   int *atMost, *atLeast, atM, atL, atLSize = 1, atMSize = 1;
@@ -808,32 +561,13 @@ int main(int argc, char *argv[]) {
   // Parse command line arguments
   extern char *optarg;
   char opt;
-  while ((opt = getopt(argc, argv, "vahLMopb:B:c:C:D:e:f:g:n:s:E:")) != -1) {
+  while ((opt = getopt(argc, argv, "vhLMopb:c:D:e:f:g:n:s:E:")) != -1) {
     switch (opt) {
-      case 'a':
-        avoid_blocking_overlap = 1;
-        break;
       case 'b':
         blocked_clause_size = atoi(optarg);
         break;
-      case 'B':;
-        double b_arg = atof(optarg);
-        if (b_arg <= 0.0) {
-          printf("Invalid -B flag argument, must be positive\n");
-          exit(-1);
-        } else if (b_arg < 1.0) {
-          blocking_method = PROB;
-          blocked_clause_prob = (int) (BLOCKED_CLAUSE_PROB_DENOM * b_arg);
-        } else {
-          blocking_method = COUNT;
-          blocked_clause_prob = (int) b_arg;
-        }
-        break;
       case 'c':
         cardinality = (int) strtol(optarg, (char **)NULL, 10);
-        break;
-      case 'C':
-        mchessOpt = optarg;
         break;
       case 'D':
         density = atof(optarg);
@@ -895,15 +629,8 @@ int main(int argc, char *argv[]) {
   
   // Generate graph
   if (strcmp(gvalue,"chess")==0) {
-    // mutilated chess
-    if (strcmp(mchessOpt,"TORUS")==0)
-      mc = mchess_create(nvalue, TORUS);
-    else if (strcmp(mchessOpt,"CYLINDER")==0)
-      mc = mchess_create(nvalue, CYLINDER);
-    else if (strcmp(mchessOpt,"NORMAL")==0)
-      mc = mchess_create(nvalue, NORMAL);
+    mc = mchess_create(nvalue, NORMAL);
     g = mchess_generate_graph(mc);
-    //g = get_chess_graph(nvalue);
   } else if (strcmp(gvalue,"pigeon")==0) {
     // pigeon hole
     pigeon = pigeon_create(nvalue);

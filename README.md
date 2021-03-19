@@ -5,7 +5,7 @@ Generate bipartite graphs and the associated CNF formulas
 ```bash
 General Options
 -g [chess|pigeon|random]       Type of graph to generate.
--n [Int]                       Size of smaller partition in graph, or nxn board for chess?.
+-n [Int]                       Size of smaller partition in graph, or nxn board for chess.
 -e [direct|linear|sinz|mixed]  At-Most-One encoding, mixed randomly selects encoding for each node.
 -f [FNAME]                     Filename to write cnf formula in dimacs format.
 -s [Int]                       Seed for random number generator.
@@ -13,9 +13,6 @@ General Options
 -L                             At-Least-One encoding applied also to both partitions.
 -E [Int]                       Number of edges in random graph.
 -v                             Verbose (display density of generated bipartite graph).
-
-Mchess Additional Options
--C [NORMAL|TORUS|CYLINDER]  Type of mutilated chessboard.
 
 Random Graph Additional Options
 -D [Float<1]       Number of edges in random graph bound by density (#edges/#possible edges).
@@ -26,19 +23,20 @@ PGBDD Variants
 -o                 Variable ordering for either Sinz or linear encoding (FNAME_variable.order).
 
 Symmetry-Breaking Clauses
--b ...
+-b [Int]                       Add symmetry-breaking clauses to disallow perfect matchings of up to this size.
 
 ```
 
 ## scripts
 Scripts to generate a subset of benchmark formulas.
 * random - random graphs with 130 edges, n from [11,20], encodings from [direct,sinz,linear,mixed], -A (default) and -B (Exactly-One) constraints
-* randomPGBDD - random graphs with 130 edges, n from [11,20], encodings from [sinz,linear], -A (default) constraints, bucket permutation (-Sched) and variable ordering (-Ord) options. (Note: this outputs .._variable.order, .._bucket.order files with usecase shown in the example section below)
-* symmetry-breaking - 
-
+* randomPGBDD - random graphs with 130 edges, n from [11,20], encodings from [sinz,linear], -A (default) constraints, bucket permutation (-Sched) and variable ordering (-Ord) options. (Note: this outputs ..\_variable.order, ..\_bucket.order files with usecase shown in the example section below)
+* gen\_chess.sh - Generates mutilated chessboard CNFs of varying sizes on direct, Sinz encodings.
+* gen\_pigeon.sh - Generates pigeon CNFs of varying sizes on direct, Sinz, linear encodings
+* randomize\_symmetry\_breaking\_claues.sh - Runs symmetry-broken CNFs into a randomizer to select a subset.
 
 ## data 
-Excel spreadsheets (Random Experiments, Symmetry-Breaking Experiments) with sheets labeled by Figure #.
+Excel spreadsheets (Random Experiments, Symmetry-Breaking Experiments) with sheets labeled by Figure.
 
 ## Solvers
 * [Kissat](https://github.com/arminbiere/kissat)
