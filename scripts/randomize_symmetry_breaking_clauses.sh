@@ -3,7 +3,7 @@
 # Range of n values to pull from
 for n in $(seq 4 1 10); do
   # Encodings here
-  for enc in sinz split; do
+  for enc in sinz linear; do
 
     # Probabilities here
     for p in 0.50; do

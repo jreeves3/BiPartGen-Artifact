@@ -1,6 +1,6 @@
 #!/bin/sh
 
-for enc in direct sinz split; do
+for enc in direct sinz linear; do
   for n in $(seq 4 1 16); do
     ../bipartgen -g pigeon -e $enc -n $n -f "Pigeon${enc}N${n}.cnf"
 
